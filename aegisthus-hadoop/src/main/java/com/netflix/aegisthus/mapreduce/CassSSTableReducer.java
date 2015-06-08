@@ -142,7 +142,7 @@ public class CassSSTableReducer extends Reducer<AegisthusKey, AtomWritable, Byte
 
             atomTotalSize += atom.serializedSizeForSSTable();
 
-            this.tombstoneTracker.update(atom);
+            this.tombstoneTracker.update(atom, false);
             // Right now, we will only keep columns. This works because we will
             // have all the columns a range tombstone applies to when we create
             // a snapshot. This will not be true if we go to partial incremental

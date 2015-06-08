@@ -95,7 +95,7 @@ public class SSTableRecordReader extends RecordReader<AegisthusKey, AtomWritable
                         @Override
                         public Observable<? extends AtomWritable> call(OnErrorThrowable onErrorThrowable) {
                             LOG.error("failure deserializing file {}", split.getPath(), onErrorThrowable);
-                            ctx.getCounter("aegisthus", "error_skipped_input").increment(1L);
+//                            ctx.getCounter("aegisthus", "error_skipped_input").increment(1L);
                             return Observable.empty();
                         }
                     });

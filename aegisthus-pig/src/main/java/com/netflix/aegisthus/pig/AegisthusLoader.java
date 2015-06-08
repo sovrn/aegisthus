@@ -161,7 +161,7 @@ public class AegisthusLoader extends PigStorage implements LoadMetadata {
 		List<ResourceFieldSchema> fields = new ArrayList<>();
 
 		fields.add(field("name", DataType.BYTEARRAY));
-		fields.add(field("value", DataType.BYTEARRAY));
+		fields.add(field("value", DataType.CHARARRAY));
 		fields.add(field("ts", DataType.LONG));
 		fields.add(field("status", DataType.CHARARRAY));
 		fields.add(field("ttl", DataType.LONG));
@@ -185,7 +185,7 @@ public class AegisthusLoader extends PigStorage implements LoadMetadata {
 	public ResourceSchema getSchema(String location, Job job) throws IOException {
 		ResourceSchema resourceSchema = new ResourceSchema();
 		List<ResourceFieldSchema> fields = new ArrayList<>();
-		fields.add(field("key", DataType.BYTEARRAY));
+		fields.add(field("key", DataType.CHARARRAY));
 		fields.add(field("deletedat", DataType.LONG));
 		fields.add(subfield("map_columns", DataType.MAP, columnSchema()));
 		fields.add(subfield("bag_columns", DataType.BAG, columnSchema()));

@@ -67,7 +67,7 @@ public class AegisthusSerializer {
 						String name = jp.getText();
 						cols.add(name);
 						jp.nextToken();
-						cols.add(new DataByteArray(jp.getText().getBytes()));
+						cols.add(jp.getText());
 						jp.nextToken();
 						cols.add(jp.getLongValue());
 						if (jp.nextToken() != JsonToken.END_ARRAY) {

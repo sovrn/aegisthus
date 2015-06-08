@@ -173,7 +173,7 @@ public class Aegisthus extends Configured implements Tool {
 
     @Override
     public int run(String[] args) throws Exception {
-        Job job = Job.getInstance(getConf());
+        Job job = new Job(getConf());
 
         job.setJarByClass(Aegisthus.class);
         CommandLine cl = getOptions(args);

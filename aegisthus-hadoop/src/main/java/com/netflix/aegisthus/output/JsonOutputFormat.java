@@ -136,7 +136,7 @@ public class JsonOutputFormat extends CustomFileNameFileOutputFormat<BytesWritab
 
                         columns = Collections.emptyList();
 
-                        context.getCounter("aegisthus", "rowsTooBig").increment(1L);
+//                        context.getCounter("aegisthus", "rowsTooBig").increment(1L);
                     }
                 }
 
@@ -148,7 +148,12 @@ public class JsonOutputFormat extends CustomFileNameFileOutputFormat<BytesWritab
                             columnName = AegisthusKeySortingComparator.legacyColumnNameFormat(columnName);
                         }
                         jsonGenerator.writeString(columnName);
-                        jsonGenerator.writeString(getString(columnValueConverter, ((Column) atom).value()));
+                        if (atom instanceof CounterColumn) {
+                            long counterValue = ((CounterColumn) atom).total();
+                            jsonGenerator.writeString(String.valueOf(counterValue));
+                        } else {
+                            jsonGenerator.writeString(getString(columnValueConverter, ((Column) atom).value()));
+                        }
                         jsonGenerator.writeNumber(((Column) atom).timestamp());
 
                         if (atom instanceof DeletedColumn) {
