@@ -80,7 +80,7 @@ public class CassSSTableReducer extends Reducer<AegisthusKey, AtomWritable, Byte
 
                 if (LOG.isDebugEnabled()) {
                     String formattedKey = rowKeyComparator.getString(ByteBuffer.wrap(rowReducer.key));
-                    LOG.debug("Doing reduce for key '{}'", formattedKey);
+                    LOG.info("Doing reduce for key '{}'", formattedKey);
                 }
             }
 

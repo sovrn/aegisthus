@@ -24,6 +24,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.TaskInputOutputContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
@@ -78,7 +79,8 @@ public class SSTableRecordReader extends RecordReader<AegisthusKey, AtomWritable
         final AegSplit split = (AegSplit) inputSplit;
 
         long start = split.getStart();
-        InputStream is = split.getInput(ctx.getConfiguration());
+//        InputStream is = split.getInput(ctx.getConfiguration());
+        InputStream is = split.getInput(ctx.getConfiguration(), start);
         long end = split.getDataEnd();
         String filename = split.getPath().toUri().toString();
 
@@ -87,7 +89,7 @@ public class SSTableRecordReader extends RecordReader<AegisthusKey, AtomWritable
         LOG.info("End: {}", end);
 
         try {
-            scanner = new SSTableColumnScanner(is, start, end, Descriptor.fromFilename(filename).version);
+            scanner = new SSTableColumnScanner(is, start, end, start, Descriptor.fromFilename(filename).version);
             LOG.info("Creating observable");
             rx.Observable<AtomWritable> observable = scanner.observable();
             observable = observable
@@ -95,7 +97,12 @@ public class SSTableRecordReader extends RecordReader<AegisthusKey, AtomWritable
                         @Override
                         public Observable<? extends AtomWritable> call(OnErrorThrowable onErrorThrowable) {
                             LOG.error("failure deserializing file {}", split.getPath(), onErrorThrowable);
-//                            ctx.getCounter("aegisthus", "error_skipped_input").increment(1L);
+                            if (ctx instanceof TaskInputOutputContext) {
+                                TaskInputOutputContext context = (TaskInputOutputContext) ctx;
+                                context.getCounter("aegisthus", "error_skipped_input").increment(1L);
+                            } else {
+                                LOG.error("Unable to mark counter skip input count");
+                            }
                             return Observable.empty();
                         }
                     });

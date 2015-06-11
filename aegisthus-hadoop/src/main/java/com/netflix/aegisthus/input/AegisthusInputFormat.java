@@ -23,6 +23,7 @@ import com.netflix.aegisthus.input.readers.SSTableRecordReader;
 import com.netflix.aegisthus.input.splits.AegCompressedSplit;
 import com.netflix.aegisthus.input.splits.AegSplit;
 import com.netflix.aegisthus.io.sstable.IndexDatabaseScanner;
+import com.netflix.aegisthus.io.sstable.compression.CompressionMetadata;
 import com.netflix.aegisthus.io.writable.AegisthusKey;
 import com.netflix.aegisthus.io.writable.AtomWritable;
 import org.apache.hadoop.fs.BlockLocation;
@@ -71,61 +72,126 @@ public class AegisthusInputFormat extends FileInputFormat<AegisthusKey, AtomWrit
         FileSystem fs = path.getFileSystem(job.getConfiguration());
         BlockLocation[] blkLocations = fs.getFileBlockLocations(file, 0, length);
 
-        Path compressionPath = new Path(path.getParent(), path.getName().replaceAll("-Data.db", "-CompressionInfo.db"));
-        if (fs.exists(compressionPath)) {
-            return ImmutableList.of((InputSplit) AegCompressedSplit.createAegCompressedSplit(path, 0, length,
-                    blkLocations[blkLocations.length - 1].getHosts(), compressionPath));
-        }
 
-        long blockSize = file.getBlockSize();
+        Path compressionPath = new Path(path.getParent(), path.getName().replaceAll("-Data.db", "-CompressionInfo.db"));
+
+        boolean isCompressed = fs.exists(compressionPath);
+
+        LOG.info("IsCompressed:"+isCompressed);
+
+//        if (fs.exists(compressionPath)) {
+//            return ImmutableList.of((InputSplit) AegCompressedSplit.createAegCompressedSplit(path, 0, length,
+//                    blkLocations[blkLocations.length - 1].getHosts(), compressionPath));
+//        }
+
+        long originalBlockSize = file.getBlockSize();
+        long blockSize = originalBlockSize * (long)5;
+        System.out.println("blockSize = " + blockSize);
         String aegisthusBlockSize = job.getConfiguration().get(Aegisthus.Feature.CONF_BLOCKSIZE);
         if (!Strings.isNullOrEmpty(aegisthusBlockSize)) {
             blockSize = Long.valueOf(aegisthusBlockSize);
         }
         long maxSplitSize = (long) (blockSize * .99);
         long fuzzySplit = (long) (blockSize * 1.2);
-
-        long bytesRemaining = length;
-
         List<InputSplit> splits = Lists.newArrayList();
-        IndexDatabaseScanner scanner = null;
-        // Only initialize if we are going to have more than a single split
-        if (fuzzySplit < length) {
-            Path indexPath = new Path(path.getParent(), path.getName().replaceAll("-Data.db", "-Index.db"));
-            if (!fs.exists(indexPath)) {
-                fuzzySplit = length;
-            } else {
-                FSDataInputStream fileIn = fs.open(indexPath);
-                scanner = new IndexDatabaseScanner(new BufferedInputStream(fileIn));
+
+        if (isCompressed) {
+            long compressedLength = length;
+
+            CompressionMetadata compressionMetadata = new CompressionMetadata(new BufferedInputStream(fs.open(compressionPath)), compressedLength, 0,0);
+            long uncompressedDataLength = compressionMetadata.getDataLength();
+
+            long bytesRemaining = uncompressedDataLength;
+
+            IndexDatabaseScanner scanner = null;
+            // Only initialize if we are going to have more than a single split
+            if (fuzzySplit < uncompressedDataLength) {
+                Path indexPath = new Path(path.getParent(), path.getName().replaceAll("-Data.db", "-Index.db"));
+                if (!fs.exists(indexPath)) {
+                    fuzzySplit = compressedLength;
+                } else {
+                    FSDataInputStream fileIn = fs.open(indexPath);
+                    BufferedInputStream indexBufferedStream = new BufferedInputStream(fileIn);
+                    scanner = new IndexDatabaseScanner(indexBufferedStream);
+                }
+            }
+
+            long splitStart = 0;
+            while (splitStart + fuzzySplit < uncompressedDataLength && scanner != null && scanner.hasNext()) {
+                long splitSize = 0;
+                // The scanner returns an offset from the start of the file.
+                while (splitSize < maxSplitSize && scanner.hasNext()) {
+                    IndexDatabaseScanner.OffsetInfo offsetInfo = scanner.next();
+                    splitSize = offsetInfo.getDataFileOffset() - splitStart;
+                }
+//                int blkIndex = getBlockIndex(blkLocations, splitStart + (splitSize / 2)); //translate to compressedlength
+                LOG.info("split path: {}:{}:{}", path.getName(), splitStart, splitSize);
+//                System.out.println(path.getName() + " splittStart=" + splitStart + " splitSize=" + splitSize);
+
+
+                int blkIndex = getBlockIndex(blkLocations, (splitStart/(long)6) + (splitSize/(long)6 / 2));
+
+
+                splits.add(AegCompressedSplit.createAegCompressedSplit(path, splitStart, splitSize, blkLocations[blkIndex].getHosts(), compressionPath, compressedLength));
+                bytesRemaining -= splitSize;
+                splitStart += splitSize;
+            }
+
+            if (scanner != null) {
+                scanner.close();
+            }
+
+            if (bytesRemaining != 0) {
+                LOG.info("end path: {}:{}:{}", path.getName(), uncompressedDataLength - bytesRemaining, bytesRemaining);
+                splits.add(AegCompressedSplit.createAegCompressedSplit(path, uncompressedDataLength - bytesRemaining, bytesRemaining,
+                        blkLocations[blkLocations.length - 1].getHosts(), compressionPath, compressedLength));
+            }
+
+        } else {
+
+
+            long bytesRemaining = length;
+
+
+            IndexDatabaseScanner scanner = null;
+            // Only initialize if we are going to have more than a single split
+            if (fuzzySplit < length) {
+                Path indexPath = new Path(path.getParent(), path.getName().replaceAll("-Data.db", "-Index.db"));
+                if (!fs.exists(indexPath)) {
+                    fuzzySplit = length;
+                } else {
+                    FSDataInputStream fileIn = fs.open(indexPath);
+                    scanner = new IndexDatabaseScanner(new BufferedInputStream(fileIn));
+                }
+            }
+
+            long splitStart = 0;
+            while (splitStart + fuzzySplit < length && scanner != null && scanner.hasNext()) {
+                long splitSize = 0;
+                // The scanner returns an offset from the start of the file.
+                while (splitSize < maxSplitSize && scanner.hasNext()) {
+                    IndexDatabaseScanner.OffsetInfo offsetInfo = scanner.next();
+                    splitSize = offsetInfo.getDataFileOffset() - splitStart;
+                }
+                int blkIndex = getBlockIndex(blkLocations, splitStart + (splitSize / 2));
+                LOG.info("split path: {}:{}:{}", path.getName(), splitStart, splitSize);
+                splits.add(AegSplit.createSplit(path, splitStart, splitSize, blkLocations[blkIndex].getHosts()));
+                bytesRemaining -= splitSize;
+                splitStart += splitSize;
+            }
+
+            if (scanner != null) {
+                scanner.close();
+            }
+
+            if (bytesRemaining != 0) {
+                LOG.info("end path: {}:{}:{}", path.getName(), length - bytesRemaining, bytesRemaining);
+                splits.add(AegSplit.createSplit(path, length - bytesRemaining, bytesRemaining,
+                        blkLocations[blkLocations.length - 1].getHosts()));
             }
         }
-
-        long splitStart = 0;
-        while (splitStart + fuzzySplit < length && scanner != null && scanner.hasNext()) {
-            long splitSize = 0;
-            // The scanner returns an offset from the start of the file.
-            while (splitSize < maxSplitSize && scanner.hasNext()) {
-                IndexDatabaseScanner.OffsetInfo offsetInfo = scanner.next();
-                splitSize = offsetInfo.getDataFileOffset() - splitStart;
-
-            }
-            int blkIndex = getBlockIndex(blkLocations, splitStart + (splitSize / 2));
-            LOG.debug("split path: {}:{}:{}", path.getName(), splitStart, splitSize);
-            splits.add(AegSplit.createSplit(path, splitStart, splitSize, blkLocations[blkIndex].getHosts()));
-            bytesRemaining -= splitSize;
-            splitStart += splitSize;
-        }
-
-        if (scanner != null) {
-            scanner.close();
-        }
-
-        if (bytesRemaining != 0) {
-            LOG.debug("end path: {}:{}:{}", path.getName(), length - bytesRemaining, bytesRemaining);
-            splits.add(AegSplit.createSplit(path, length - bytesRemaining, bytesRemaining,
-                    blkLocations[blkLocations.length - 1].getHosts()));
-        }
-
+        LOG.info("number of splits:"+splits.size());
+        System.out.println("number of splits:"+splits.size());
         return splits;
     }
 
@@ -140,6 +206,7 @@ public class AegisthusInputFormat extends FileInputFormat<AegisthusKey, AtomWrit
                 splits.addAll(getSSTableSplitsForFile(job, file));
             }
         }
+        LOG.info("number of overall splits:"+splits.size());
         return splits;
     }
 }

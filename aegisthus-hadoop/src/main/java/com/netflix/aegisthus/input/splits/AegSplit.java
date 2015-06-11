@@ -61,9 +61,12 @@ public class AegSplit extends InputSplit implements Writable {
     }
 
     @Nonnull
-    public InputStream getInput(@Nonnull Configuration conf) throws IOException {
+    public InputStream getInput(@Nonnull Configuration conf, long skipToPosition) throws IOException {
         FileSystem fs = path.getFileSystem(conf);
         FSDataInputStream fileIn = fs.open(path);
+        if (skipToPosition>0) {
+            fileIn.seek(skipToPosition);
+        }
         return new DataInputStream(new BufferedInputStream(fileIn));
     }
 

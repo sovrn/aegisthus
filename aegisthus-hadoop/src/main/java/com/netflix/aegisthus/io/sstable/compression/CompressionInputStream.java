@@ -15,6 +15,8 @@
  */
 package com.netflix.aegisthus.io.sstable.compression;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xerial.snappy.SnappyOutputStream;
 
 import javax.annotation.Nonnull;
@@ -29,6 +31,8 @@ import static java.lang.Math.min;
  * the format produced by {@link SnappyOutputStream}.
  */
 public class CompressionInputStream extends InputStream {
+    private static final Logger LOG = LoggerFactory.getLogger(CompressionInputStream.class);
+
     private final byte[] buffer;
     private final CompressionMetadata cm;
     private final InputStream in;
@@ -63,6 +67,8 @@ public class CompressionInputStream extends InputStream {
         if (cm.currentLength() <= 0) {
             return 0;
         }
+//        LOG.info("current length="+cm.currentLength()+" currentchunk="+cm.getCurrent()+" startChunk="+cm.getStartChunk()+" endChunk="+cm.getEndChunk());
+//        System.out.println("current length="+cm.currentLength());
         readInput(cm.currentLength());
         cm.incrementChunk();
         return valid;
@@ -113,6 +119,8 @@ public class CompressionInputStream extends InputStream {
         return size;
     }
 
+    long totallength = 0;
+
     private void readInput(int length) throws IOException {
         int offset = 0;
         while (offset < length) {
@@ -122,12 +130,24 @@ public class CompressionInputStream extends InputStream {
             }
             offset += size;
         }
+
+        totallength += offset;
         // ignore checksum for now
         byte[] checksum = new byte[4];
-        int size = in.read(checksum);
+        int checksumSize=0;
+        while (checksumSize<4) {
+            int size = in.read(checksum, checksumSize, 4-checksumSize);
+            if (size == -1) {
+                throw new EOFException("encountered EOF while reading block data");
+            }
+            checksumSize +=size;
+        }
 
-        if (size != 4) {
-            throw new EOFException("encountered EOF while reading checksum");
+
+        totallength += offset + checksumSize;
+
+        if (checksumSize != 4) {
+            throw new EOFException("encountered EOF while reading checksum"+checksumSize+" length="+length+" offset="+offset+" totalRead:"+totallength);
         }
 
         valid = cm.compressor().uncompress(input, 0, length, buffer, 0);

@@ -168,7 +168,7 @@ public class JsonOutputFormat extends CustomFileNameFileOutputFormat<BytesWritab
                         }
                         jsonGenerator.writeEndArray();
                     } else if (atom instanceof RangeTombstone) {
-                        LOG.debug("Range Tombstones are not output in the json format");
+                        LOG.info("Range Tombstones are not output in the json format");
                     } else {
                         throw new IllegalStateException("Unknown atom type for atom: " + atom);
                     }

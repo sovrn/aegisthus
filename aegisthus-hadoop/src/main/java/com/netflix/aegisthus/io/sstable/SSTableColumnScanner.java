@@ -45,14 +45,14 @@ public class SSTableColumnScanner {
     private long pos;
     private Descriptor.Version version = null;
 
-    public SSTableColumnScanner(InputStream is, long start, long end, Descriptor.Version version) throws IOException {
+    public SSTableColumnScanner(InputStream is, long start, long end, long currentStreamPosition, Descriptor.Version version) throws IOException {
         this.version = version;
         this.start = start;
         this.end = end;
         this.input = new DataInputStream(is);
-        if (this.start > 0) {
+        if (this.start > currentStreamPosition) {
             LOG.info("skipping to start: {}", start);
-            skipUnsafe(start);
+            skipUnsafe(start-currentStreamPosition);
         }
         this.pos = start;
     }
@@ -69,7 +69,7 @@ public class SSTableColumnScanner {
     }
 
     void deserialize(Subscriber<? super AtomWritable> subscriber) {
-        LOG.debug("current pos({}) done ({})", pos, hasMore() ? "has more" : "no more");
+        LOG.info("current pos({}) done ({})", pos, hasMore() ? "has more" : "no more");
         while (hasMore()) {
             int keysize = -1;
             byte[] rowKey = null;
@@ -123,6 +123,7 @@ public class SSTableColumnScanner {
                 subscriber.onError(new IOException(message, e));
                 break;
             } catch (IOException e) {
+                LOG.error("IOException Data:"+this.pos+" hasMore?"+this.hasMore());
                 subscriber.onError(e);
                 break;
             }

@@ -32,6 +32,7 @@ import java.util.Iterator;
 public class IndexDatabaseScanner implements Iterator<IndexDatabaseScanner.OffsetInfo>, Closeable {
     private final CountingInputStream countingInputStream;
     private final DataInputStream input;
+    boolean closed = false;
 
     public IndexDatabaseScanner(@Nonnull InputStream is) {
         this.countingInputStream = new CountingInputStream(is);
@@ -43,16 +44,18 @@ public class IndexDatabaseScanner implements Iterator<IndexDatabaseScanner.Offse
         try {
             input.close();
         } catch (IOException ignored) {
+        } finally {
+            closed=true;
         }
     }
 
     @Override
     public boolean hasNext() {
-        try {
-            return input.available() != 0;
-        } catch (IOException e) {
-            throw new IOError(e);
-        }
+       if (closed) {
+           return false;
+       } else {
+           return true;
+       }
     }
 
     @Override
@@ -66,6 +69,7 @@ public class IndexDatabaseScanner implements Iterator<IndexDatabaseScanner.Offse
             skipPromotedIndexes();
             return new OffsetInfo(dataOffset, indexOffset);
         } catch (IOException e) {
+            closed = true;
             throw new IOError(e);
         }
     }

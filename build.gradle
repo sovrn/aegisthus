@@ -112,6 +112,7 @@ project(':aegisthus-hadoop') {
         // cassandra selected transitive deps
         includeInJar 'org.apache.thrift:libthrift:0.9.1'
         includeInJar 'org.xerial.snappy:snappy-java:1.0.4.1'
+        compile 'org.xerial.snappy:snappy-java:1.0.4.1'
         includeInJar 'net.jpountz.lz4:lz4:1.2.0'
         includeInJar 'org.apache.commons:commons-lang3:3.1'
         includeInJar 'com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru:1.3'
@@ -166,7 +167,7 @@ def includeHadoopLibs(project) {
         project.dependencies {
             compile "org.apache.hadoop:hadoop-core:$hadoopVersion"
             compile "com.google.code.findbugs:jsr305:1.3.9"
-            compile "commons-io:commons-io:2.4"
+            includeInJar "commons-io:commons-io:2.4"
         }
     } else {
         project.dependencies {
