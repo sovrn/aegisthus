@@ -129,7 +129,7 @@ public class AegisthusInputFormat extends FileInputFormat<AegisthusKey, AtomWrit
 //                System.out.println(path.getName() + " splittStart=" + splitStart + " splitSize=" + splitSize);
 
 
-                int blkIndex = getBlockIndex(blkLocations, (splitStart/(long)6) + (splitSize/(long)6 / 2));
+                int blkIndex = getBlockIndex(blkLocations, (splitStart/(long)7) + ( (splitSize/(long)7) / 2));
 
 
                 splits.add(AegCompressedSplit.createAegCompressedSplit(path, splitStart, splitSize, blkLocations[blkIndex].getHosts(), compressionPath, compressedLength));
